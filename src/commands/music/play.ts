@@ -42,13 +42,6 @@ export default {
         ephemeral: true,
       });
 
-    if (MusicPlayer.voiceChannel === voiceChannel) {
-      return msgInt.reply({
-        content: "Already connected to your voice channel!",
-        ephemeral: true,
-      });
-    }
-
     MusicPlayer.voiceChannel = voiceChannel as VoiceChannel;
     MusicPlayer.textChannel = msgInt.channel as TextChannel;
 

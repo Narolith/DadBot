@@ -17,6 +17,7 @@ export default {
         value: `${song.lengthMinutes}:${song.lengthSeconds}`,
       });
     });
+
     if (songs.length === 0) {
       songs.push({ name: "Empty", value: "No songs in the queue" });
     }
