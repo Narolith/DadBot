@@ -36,8 +36,28 @@ client.once("ready", async () => {
   new WOKComands(client, {
     commandDir: path.join(__dirname, "commands"),
     botOwners: ["145787000425938944", "144999776708984832"],
-    mongoUri: Config.mongoUri,
   });
+
+  schedule("00 9 * * *", async () => {
+    if (!Config.server) return;
+    const guild = await client.guilds.fetch(Config.server);
+    const members = await guild.members.fetch();
+
+    const usernames: Array<string> = [];
+    members.forEach(async (member) => {
+      usernames.push(member.user.username);
+    });
+
+    const docs = await db.collection("birthdays").get();
+
+    docs.forEach((doc) => {
+      const birthday = Birthday.fromFirestore(doc);
+      if (!usernames.includes(birthday.username)) {
+        db.collection("birthdays").doc(doc.id).delete();
+      }
+    });
+  });
+  console.log("Daily Birthday Cleanup Scheduled");
 
   schedule("00 10 * * *", async () => {
     const month = Number(new Date().getMonth()) + 1;
@@ -80,6 +100,8 @@ client.once("ready", async () => {
 
     channelToMsg.send({ embeds: [embed] });
   });
+
+  console.log("Daily Birthday Message Check Scheduled");
 
   console.log("The bot is ready!");
 });
