@@ -65,8 +65,7 @@ export default {
       if (!MusicPlayer.subscription)
         MusicPlayer.subscription = connection.subscribe(MusicPlayer.player);
 
-      interaction.reply({
-        ephemeral: true,
+      interaction.channel!.send({
         content: "Join Successful",
       });
     } catch (err) {
