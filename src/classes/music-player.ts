@@ -24,19 +24,16 @@ export abstract class MusicPlayer {
 
   public static player = createAudioPlayer()
     .on(AudioPlayerStatus.Idle, async () => {
-      if (!MusicPlayer.repeat) {
-        MusicPlayer.queue.shift();
-      }
+      if (!MusicPlayer.repeat) MusicPlayer.queue.shift();
       if (MusicPlayer.queue.length > 0) {
         MusicPlayer.playNextSong(MusicPlayer.queue[0]);
       } else {
         MusicPlayer.dcTimer = setTimeout(async () => {
-          if (MusicPlayer.connection) {
-            MusicPlayer.connection.disconnect();
-          }
+          MusicPlayer.connection?.disconnect();
           MusicPlayer.connection = null;
           MusicPlayer.subscription?.unsubscribe();
           MusicPlayer.subscription = null;
+
           const embed = new MessageEmbed()
             .setTitle("Inactive")
             .setDescription(
@@ -44,9 +41,8 @@ export abstract class MusicPlayer {
             )
             .setColor("BLUE")
             .setTimestamp();
-          if (MusicPlayer.textChannel) {
-            await MusicPlayer.textChannel.send({ embeds: [embed] });
-          }
+
+          await MusicPlayer.textChannel?.send({ embeds: [embed] });
         }, 300000);
 
         const embed = new MessageEmbed()
@@ -54,9 +50,7 @@ export abstract class MusicPlayer {
           .setDescription("No more songs.")
           .setColor("BLUE")
           .setTimestamp();
-        if (MusicPlayer.textChannel) {
-          await MusicPlayer.textChannel.send({ embeds: [embed] });
-        }
+        await MusicPlayer.textChannel?.send({ embeds: [embed] });
       }
     })
     .on("error", async (error) => {
@@ -66,13 +60,9 @@ export abstract class MusicPlayer {
         .setFields([{ name: "Error Code", value: error.message }])
         .setColor("RED")
         .setTimestamp();
-      if (MusicPlayer.textChannel) {
-        await MusicPlayer.textChannel.send({ embeds: [embed] });
-      }
+      await MusicPlayer.textChannel?.send({ embeds: [embed] });
       MusicPlayer.queue.shift();
-      if (MusicPlayer.queue.length > 0) {
-        MusicPlayer.playNextSong(MusicPlayer.queue[0]);
-      }
+      MusicPlayer.playNextSong(MusicPlayer.queue?.[0]);
     })
     .on(AudioPlayerStatus.Playing, async () => {
       if (MusicPlayer.dcTimer) {
@@ -114,8 +104,6 @@ export abstract class MusicPlayer {
       ])
       .setColor("BLUE")
       .setTimestamp();
-    if (MusicPlayer.textChannel) {
-      await MusicPlayer.textChannel.send({ embeds: [embed] });
-    }
+    await MusicPlayer.textChannel?.send({ embeds: [embed] });
   }
 }

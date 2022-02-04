@@ -1,15 +1,30 @@
-import { Client, Intents, MessageEmbed, TextChannel } from "discord.js";
-import WOKComands from "wokcommands";
-import * as path from "path";
-import { MusicPlayer } from "./music-player/music-player";
+import {
+  Guild,
+  Intents,
+  MessageEmbed,
+  TextChannel,
+  VoiceState,
+} from "discord.js";
+import {
+  where,
+  doc,
+  collection,
+  deleteDoc,
+  getDocs,
+  query,
+  getFirestore,
+  DocumentData,
+  QuerySnapshot,
+} from "@firebase/firestore";
+import { initializeApp, FirebaseOptions } from "firebase/app";
+import { MusicPlayer } from "./classes/music-player";
 import { schedule } from "node-cron";
 import Config from "./config";
 import Birthday from "./classes/birthday";
-import * as firebase from "firebase-admin";
+import CommandImporter from "./command-importer";
+import CustomClient from "./classes/custom-client";
 
-import { ServiceAccount } from "firebase-admin";
-
-const client = new Client({
+export const client = new CustomClient({
   intents: [
     Intents.FLAGS.GUILDS,
     Intents.FLAGS.GUILD_MEMBERS,
@@ -20,73 +35,88 @@ const client = new Client({
   ],
 });
 
-const serviceAccount: ServiceAccount = {
+const appOptions: FirebaseOptions = {
   projectId: Config.fireStoreProjectId,
-  clientEmail: Config.fireStoreClientEmail,
-  privateKey: Config.fireStorePrivateKey,
+  databaseURL: Config.dbUrl,
+  apiKey: Config.apiKey,
 };
 
-firebase.initializeApp({
-  credential: firebase.credential.cert(serviceAccount),
-});
-
-export const db = firebase.firestore();
+const app = initializeApp(appOptions, "DadBot");
+export const db = getFirestore(app);
 
 client.once("ready", async () => {
-  new WOKComands(client, {
-    commandDir: path.join(__dirname, "commands"),
-    botOwners: ["145787000425938944", "144999776708984832"],
-  });
+  await CommandImporter();
+  birthdayCleanup();
+  birthdayAnnouncement();
+  console.log("The bot is ready!");
+});
 
-  schedule("00 9 * * *", async () => {
-    if (!Config.server) return;
-    const guild = await client.guilds.fetch(Config.server);
-    const members = await guild.members.fetch();
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isCommand()) {
+    return;
+  }
 
-    const usernames: Array<string> = [];
-    members.forEach(async (member) => {
-      usernames.push(member.user.username);
+  const command = client.commands.get(interaction.commandName);
+
+  if (!command) return;
+
+  try {
+    await command.execute(interaction);
+  } catch (error) {
+    console.error(error);
+    await interaction.reply({
+      content: "There was an error while executing this command!",
+      ephemeral: true,
     });
+  }
+});
 
-    const docs = await db.collection("birthdays").get();
+client.on("voiceStateUpdate", async (oldMember, newMember) => {
+  checkForDisconnect(newMember, oldMember);
+});
 
-    docs.forEach((doc) => {
-      const birthday = Birthday.fromFirestore(doc);
-      if (!usernames.includes(birthday.username)) {
-        db.collection("birthdays").doc(doc.id).delete();
-      }
-    });
-  });
-  console.log("Daily Birthday Cleanup Scheduled");
+client.login(Config.botToken);
 
+/**
+ * Checks if bot was kicked/removed from voice channel without the leave command and handles cleanup
+ * @param {VoiceState} newMember
+ * @param {VoiceState} oldMember
+ */
+function checkForDisconnect(newMember: VoiceState, oldMember: VoiceState) {
+  if (!client.user) return;
+  if (newMember.id !== client.user.id) return;
+  if (oldMember.channelId !== MusicPlayer.voiceChannel?.id) return;
+  if (newMember.channelId !== null) return;
+
+  if (MusicPlayer.connection) {
+    MusicPlayer.connection.disconnect();
+    MusicPlayer.connection = null;
+  }
+
+  if (MusicPlayer.subscription) {
+    MusicPlayer.subscription.unsubscribe();
+    MusicPlayer.subscription = null;
+  }
+
+  if (MusicPlayer.queue.length > 0) {
+    MusicPlayer.queue.length = 0;
+  }
+}
+
+function birthdayAnnouncement() {
   schedule("00 10 * * *", async () => {
     const month = Number(new Date().getMonth()) + 1;
     const day = new Date().getDate();
-
-    const docs = await db
-      .collection("birthdays")
-      .where("month", "==", month)
-      .where("day", "==", day)
-      .get();
+    const docs = await getMonthBirthdays(month, day);
 
     if (docs.empty) return;
-
-    let birthdayList = "";
-    docs.forEach((doc) => {
-      const birthday = Birthday.fromFirestore(doc.data());
-      birthdayList += `${birthday.username}\n`;
-    });
+    let birthdayList = buildUsernameList(docs);
     const guild = client.guilds.cache.find(
       (guild) => guild.id === Config.server
     );
 
     if (!guild) return;
-    const roleToMention = guild.roles.cache.find(
-      (role) => role.id === Config.announcementRole
-    );
-    const channelToMsg = client.channels.cache.find(
-      (channel) => channel.id === Config.generalChannel
-    ) as TextChannel;
+    const { roleToMention, channelToMsg } = getServerInfo(guild);
 
     const embed = new MessageEmbed()
       .setTitle("Birthday People!")
@@ -100,33 +130,57 @@ client.once("ready", async () => {
 
     channelToMsg.send({ embeds: [embed] });
   });
+  console.log("Daily Birthday Message Announcement Scheduled");
+}
 
-  console.log("Daily Birthday Message Check Scheduled");
+function getServerInfo(guild: Guild) {
+  const roleToMention = guild.roles.cache.find(
+    (role) => role.id === Config.announcementRole
+  );
+  const channelToMsg = client.channels.cache.find(
+    (channel) => channel.id === Config.generalChannel
+  ) as TextChannel;
+  return { roleToMention, channelToMsg };
+}
 
-  console.log("The bot is ready!");
-});
+function buildUsernameList(docs: QuerySnapshot<DocumentData>) {
+  let birthdayList = "";
+  docs.forEach((document) => {
+    const birthday = Birthday.fromFirestore(document.data());
+    birthdayList += `${birthday.username}\n`;
+  });
+  return birthdayList;
+}
 
-client.on("voiceStateUpdate", async (oldMember, newMember) => {
-  if (!client.user) return;
-  if (newMember.id === client.user.id) {
-    if (oldMember.channelId === MusicPlayer.voiceChannel?.id) {
-      if (newMember.channelId === null) {
-        if (MusicPlayer.connection) {
-          MusicPlayer.connection.disconnect();
-          MusicPlayer.connection = null;
-        }
+async function getMonthBirthdays(month: number, day: number) {
+  const q = query(
+    collection(db, "birthdays"),
+    where("month", "==", month),
+    where("day", "==", day)
+  );
+  const docs = await getDocs(q);
+  return docs;
+}
 
-        if (MusicPlayer.subscription) {
-          MusicPlayer.subscription?.unsubscribe();
-          MusicPlayer.subscription = null;
-        }
+function birthdayCleanup() {
+  schedule("00 9 * * *", async () => {
+    if (!Config.server) return;
+    const guild = await client.guilds.fetch(Config.server);
+    const members = await guild.members.fetch();
 
-        if (MusicPlayer.queue.length > 0) {
-          MusicPlayer.queue.length = 0;
-        }
+    const usernames: Array<string> = [];
+    members.forEach(async (member) => {
+      usernames.push(member.user.username);
+    });
+
+    const docs = await getDocs(collection(db, "birthdays"));
+
+    docs.forEach(async (document) => {
+      const birthday = Birthday.fromFirestore(document);
+      if (!usernames.includes(birthday.username)) {
+        await deleteDoc(doc(db, "birthdays", document.id));
       }
-    }
-  }
-});
-
-client.login(Config.botToken);
+    });
+  });
+  console.log("Daily Birthday Cleanup Scheduled");
+}
