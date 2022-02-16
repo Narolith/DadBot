@@ -13,8 +13,8 @@ import {
   deleteDoc,
   doc,
 } from "firebase/firestore";
-import { db } from "../index";
 import { SlashCommandBuilder } from "@discordjs/builders";
+import { dadBot } from "..";
 
 export default {
   data: new SlashCommandBuilder()
@@ -25,7 +25,7 @@ export default {
       const username = interaction.user.username;
 
       const q = query(
-        collection(db, "birthdays"),
+        collection(dadBot.db, "birthdays"),
         where("username", "==", username)
       );
       const results = await getDocs(q);
@@ -76,7 +76,7 @@ export default {
         let message;
 
         if (collection.first()?.customId === "confirm") {
-          await deleteDoc(doc(db, "birthdays", birthday.id));
+          await deleteDoc(doc(dadBot.db, "birthdays", birthday.id));
           message = "Your birthday has been deleted.";
         } else {
           message = "Canceled.";

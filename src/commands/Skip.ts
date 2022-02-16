@@ -1,5 +1,5 @@
 import { CacheType, CommandInteraction, MessageEmbed } from "discord.js";
-import { MusicPlayer } from "../classes/music-player";
+import { MusicPlayer } from "../MusicPlayer";
 import { SlashCommandBuilder } from "@discordjs/builders";
 
 export default {

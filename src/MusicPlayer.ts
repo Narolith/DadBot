@@ -7,8 +7,8 @@ import {
 } from "@discordjs/voice";
 import { MessageEmbed, TextChannel, VoiceChannel } from "discord.js";
 import ytdl from "ytdl-core";
-import { Song } from "./song";
-import Config from "../config";
+import { Song } from "./Song";
+import Config from "./Config";
 
 /**
  * Music player with queue

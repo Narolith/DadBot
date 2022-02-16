@@ -8,9 +8,9 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import Birthday from "../classes/birthday";
-import { db } from "../index";
+import Birthday from "../Birthday";
 import { SlashCommandBuilder } from "@discordjs/builders";
+import { dadBot } from "..";
 export default {
   data: new SlashCommandBuilder()
     .setName("add-birthday")
@@ -39,7 +39,7 @@ export default {
       const newBirthday = new Birthday(username, month, day);
 
       const q = query(
-        collection(db, "birthdays"),
+        collection(dadBot.db, "birthdays"),
         where("username", "==", newBirthday.username)
       );
       const birthday = await getDocs(q);
@@ -50,13 +50,16 @@ export default {
         .setTimestamp();
 
       if (birthday.empty) {
-        addDoc(collection(db, "birthdays"), Birthday.toFirestore(newBirthday));
+        addDoc(
+          collection(dadBot.db, "birthdays"),
+          Birthday.toFirestore(newBirthday)
+        );
         embed
           .setTitle("Birthday Added")
           .setDescription(`Your birthday has been added for ${month}/${day}`);
       } else {
         setDoc(
-          doc(db, "birthdays", birthday.docs[0].id),
+          doc(dadBot.db, "birthdays", birthday.docs[0].id),
           Birthday.toFirestore(newBirthday)
         );
         embed

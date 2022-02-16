@@ -5,7 +5,7 @@ import {
   TextChannel,
   VoiceChannel,
 } from "discord.js";
-import { MusicPlayer } from "../classes/music-player";
+import { MusicPlayer } from "../MusicPlayer";
 import {
   DiscordGatewayAdapterCreator,
   joinVoiceChannel,

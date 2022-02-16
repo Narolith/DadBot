@@ -6,13 +6,13 @@ import {
 } from "discord.js";
 import * as ytdl from "ytdl-core";
 import * as yt from "youtube-search-without-api-key";
-import { MusicPlayer } from "../classes/music-player";
-import { Song } from "../classes/song";
+import { MusicPlayer } from "../MusicPlayer";
+import { Song } from "../Song";
 import {
   DiscordGatewayAdapterCreator,
   joinVoiceChannel,
 } from "@discordjs/voice";
-import join from "./join";
+import join from "./Join";
 import { SlashCommandBuilder } from "@discordjs/builders";
 
 export default {
